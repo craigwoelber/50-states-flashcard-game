@@ -33,6 +33,11 @@ further out. Roughly one card in five is pulled from regions already finished,
 so the Northeast doesn't fade while the West is being learned. A missed review
 card goes back into rotation but doesn't un-finish the region.
 
+Tapping any unlocked region from the home screen — finished or not — always
+drops you into its cards. A region you've already finished just keeps cycling
+its own states for review instead of sending you back to the "done" screen,
+which only shows up once, right when you first finish a region.
+
 Rhode Island, Connecticut, Delaware, New Jersey, Vermont, Massachusetts, New
 Hampshire, Maryland and Hawaii are too small to read on a phone, so those cards
 add a zoomed inset with a dashed locator box on the main map showing where it

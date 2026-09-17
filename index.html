@@ -532,7 +532,18 @@ function nextCard() {
   const region = REGIONS[idx];
   const active = region.codes.filter(c => !known(c));
 
-  if (!active.length) { current = null; return; }
+  if (!active.length) {
+    // Every state in this region is known — keep it browsable as an on-demand
+    // review loop (drawn only from its own states) instead of dead-ending.
+    const capital = Math.random() < CAP_RATE;
+    const pool = region.codes.filter(c => c !== current);
+    const c = pick(pool.length ? pool : region.codes, capital ? 'capital' : 'name');
+    current = c || null;
+    wasReview = true;
+    cardMode = capital ? 'capital' : 'name';
+    flipped = false;
+    return;
+  }
 
   // States already known: earlier regions first, then this region's finished ones.
   // They keep old material warm, and they fill in when the active pool is down to one.
@@ -673,8 +684,6 @@ function renderHome() {
     b.onclick = async () => {
       meta.region = b.dataset.region;
       await saveMeta();
-      const r = REGIONS.find(x => x.id === meta.region);
-      if (regionStats(r).complete) { view = 'done'; render(); return; }
       nextCard();
       view = 'card';
       render();

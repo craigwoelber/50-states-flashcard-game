@@ -1,6 +1,6 @@
 /* Bump VERSION whenever you change index.html — that is what forces phones to
    pick up the new build instead of serving the cached one forever. */
-const VERSION = 'v2';
+const VERSION = 'v3';
 const SHELL = `states-shell-${VERSION}`;
 const FONTS = 'states-fonts';
 
