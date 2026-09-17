@@ -474,6 +474,7 @@ async function resetAll() {
 }
 
 const known = code => cards[code].streak >= MASTER_STREAK;
+const capKnown = code => cards[code].capStreak >= MASTER_STREAK;
 
 function regionStats(r) {
   const total = r.codes.length;
@@ -523,6 +524,16 @@ function choicesFor(code) {
   const distractors = shuffle(QUIZ_CODES.filter(c => c !== code)).slice(0, 3);
   const options = shuffle([code, ...distractors]);
   choiceCache = { code, options };
+  return options;
+}
+
+let capChoiceCache = null;
+
+function capChoicesFor(code) {
+  if (capChoiceCache && capChoiceCache.code === code) return capChoiceCache.options;
+  const distractors = shuffle(QUIZ_CODES.filter(c => c !== code)).slice(0, 3);
+  const options = shuffle([code, ...distractors]);
+  capChoiceCache = { code, options };
   return options;
 }
 
@@ -713,6 +724,7 @@ function renderCard() {
   const useInset = INSET.has(current);
   const pct = s.total ? (s.got / s.total) * 100 : 0;
   const beginnerCard = meta.beginnerMode && !known(current);
+  const capBeginnerCard = cardMode === 'capital' && !capKnown(current);
 
   const insetMarkup = useInset
     ? `<div class="inset">${mapSVG(current, insetBox(current).join(' '), false)}<b>Zoomed in</b></div>`
@@ -735,6 +747,25 @@ function renderCard() {
              ${options.map(code => {
                const cls = code === current ? ' correct' : (code === picked ? ' wrong' : '');
                return `<button class="choice${cls}" disabled>${esc(GEO[code].n)}</button>`;
+             }).join('')}
+           </div>
+           <button class="cta" id="continue">Continue</button>
+         </div>`;
+  } else if (capBeginnerCard) {
+    options = capChoicesFor(current);
+    answerMarkup = picked === null
+      ? `<p class="ask">What's the capital of ${esc(GEO[current].n)}?</p>
+         <p class="ask-sub">Tap the matching capital</p>
+         <div class="choices">
+           ${options.map(code => `<button class="choice" data-code="${code}">${esc(GEO[code].c)}</button>`).join('')}
+         </div>`
+      : `<div class="reveal">
+           <div class="name" aria-live="polite">${esc(GEO[current].c)}</div>
+           <div class="sub">${picked === current ? 'Correct!' : `Not quite — you picked ${esc(GEO[picked].c)}`}</div>
+           <div class="choices answered">
+             ${options.map(code => {
+               const cls = code === current ? ' correct' : (code === picked ? ' wrong' : '');
+               return `<button class="choice${cls}" disabled>${esc(GEO[code].c)}</button>`;
              }).join('')}
            </div>
            <button class="cta" id="continue">Continue</button>
@@ -765,7 +796,7 @@ function renderCard() {
          <p class="ask-sub">Say it out loud, then tap the map</p>`;
   }
 
-  const revealed = beginnerCard ? picked !== null : flipped;
+  const revealed = (beginnerCard || capBeginnerCard) ? picked !== null : flipped;
 
   app.innerHTML = `
     <header>
@@ -774,7 +805,7 @@ function renderCard() {
     </header>
     <div class="bar"><span style="width:${pct}%"></span></div>
     <div class="stage">
-      <button class="map-panel" id="flip" ${(beginnerCard || flipped) ? 'disabled' : ''} aria-label="${revealed ? esc(cardMode === 'capital' ? GEO[current].c : GEO[current].n) : (beginnerCard ? 'Which state is highlighted' : (cardMode === 'capital' ? 'Reveal the capital' : 'Reveal the state name'))}">
+      <button class="map-panel" id="flip" ${(beginnerCard || capBeginnerCard || flipped) ? 'disabled' : ''} aria-label="${revealed ? esc(cardMode === 'capital' ? GEO[current].c : GEO[current].n) : ((beginnerCard || capBeginnerCard) ? (cardMode === 'capital' ? 'Which state is this' : 'Which state is highlighted') : (cardMode === 'capital' ? 'Reveal the capital' : 'Reveal the state name'))}">
         ${mapSVG(current, VIEWBOX, useInset)}
         ${insetMarkup}
       </button>
@@ -783,7 +814,7 @@ function renderCard() {
 
   document.getElementById('back').onclick = () => { view = 'home'; render(); };
 
-  if (beginnerCard) {
+  if (beginnerCard || capBeginnerCard) {
     if (picked === null) {
       app.querySelectorAll('.choice').forEach(btn => {
         btn.onclick = () => { picked = btn.dataset.code; render(); };

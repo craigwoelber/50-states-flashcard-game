@@ -44,10 +44,12 @@ add a zoomed inset with a dashed locator box on the main map showing where it
 is looking.
 
 Once a state is known, its review cards occasionally ask for its capital
-instead of its name — same map, same flip-to-reveal, same Leitner boxes, just
-a separate box/streak per state so learning the capital doesn't reset name
-progress (or vice versa). Capitals never block a region from finishing; they
-only ride along on the review draws that already visit known states.
+instead of its name — same map, same Leitner boxes, just a separate
+box/streak per state so learning the capital doesn't reset name progress (or
+vice versa). Capitals never block a region from finishing; they only ride
+along on the review draws that already visit known states. A capital starts
+out as a 4-choice multiple-choice question, the same as Beginner mode does
+for new state names, and switches to flip-to-reveal once it's known too.
 
 ## Data
 
