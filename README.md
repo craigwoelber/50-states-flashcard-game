@@ -38,12 +38,20 @@ Hampshire, Maryland and Hawaii are too small to read on a phone, so those cards
 add a zoomed inset with a dashed locator box on the main map showing where it
 is looking.
 
+Once a state is known, its review cards occasionally ask for its capital
+instead of its name — same map, same flip-to-reveal, same Leitner boxes, just
+a separate box/streak per state so learning the capital doesn't reset name
+progress (or vice versa). Capitals never block a region from finishing; they
+only ride along on the review draws that already visit known states.
+
 ## Data
 
 Progress lives in IndexedDB (`states-quiz`), two stores: `states` keyed by
-postal code holding box, streak, hits, misses and the due counter, and `meta`
-holding the current region, card counter and finished regions. Nothing leaves
-the phone. "Start over" on the region screen wipes both stores.
+postal code holding box, streak, hits, misses and the due counter for the
+name — plus a parallel `capBox`/`capStreak`/`capHits`/`capMisses`/`capDue` set
+for the capital — and `meta` holding the current region, card counter and
+finished regions. Nothing leaves the phone. "Start over" on the region screen
+wipes both stores.
 
 State outlines are pre-projected Albers USA paths generated from
 [us-atlas](https://github.com/topojson/us-atlas) (`states-albers-10m`, public
@@ -64,5 +72,6 @@ Things that are easy to adjust, all near the top of the script in `index.html`:
 | `GAP` | cards to wait before a state returns, per Leitner box |
 | `MISS_GAP` | cards to wait after a miss |
 | `REVIEW_RATE` | share of cards drawn from finished regions |
+| `CAP_RATE` | share of those review draws that ask for the capital instead of the name |
 | `REGIONS` | region names and which states belong to each |
 | `INSET` | which states get the zoomed inset |
