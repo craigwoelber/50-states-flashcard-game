@@ -22,6 +22,7 @@
     --map-edge:  #F7F5EF;
     --amber:     #F0A92B;
     --red:       #B3202E;
+    --green:     #4C9A5B;
     --muted:     rgba(247, 245, 239, 0.62);
     --r:         14px;
   }
@@ -222,6 +223,27 @@
   .missed { background: var(--red); color: #fff; }
   .got    { background: var(--amber); color: var(--ink); }
 
+  /* ---------- multiple choice (beginner mode) ---------- */
+
+  .choices { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px; }
+
+  .choice {
+    padding: 16px 10px;
+    border-radius: var(--r);
+    background: rgba(247, 245, 239, 0.1);
+    color: var(--paper);
+    font-size: 1rem;
+    font-weight: 800;
+    letter-spacing: -0.01em;
+    text-align: center;
+    transition: transform 0.08s;
+  }
+
+  .choice:active { transform: scale(0.975); }
+  .choices.answered .choice { cursor: default; }
+  .choice.correct { background: var(--green); color: #fff; }
+  .choice.wrong { background: var(--red); color: #fff; }
+
   /* ---------- region list ---------- */
 
   .sheet { padding: 4px 2px 0; }
@@ -240,6 +262,46 @@
     padding-bottom: 20px;
     max-width: 44ch;
   }
+
+  .toggle-row {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    width: 100%;
+    text-align: left;
+    padding: 15px 4px;
+    border-top: 1px solid rgba(247, 245, 239, 0.14);
+    border-bottom: 1px solid rgba(247, 245, 239, 0.14);
+    margin-bottom: 6px;
+  }
+
+  .toggle-row .tname { font-size: 1rem; font-weight: 800; letter-spacing: -0.01em; }
+  .toggle-row .tmeta { font-size: 0.8rem; font-weight: 600; color: var(--muted); padding-top: 3px; }
+
+  .switch {
+    flex: none;
+    width: 46px;
+    height: 28px;
+    border-radius: 14px;
+    background: rgba(247, 245, 239, 0.18);
+    position: relative;
+    transition: background 0.15s;
+  }
+
+  .switch.on { background: var(--amber); }
+
+  .switch .knob {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--paper);
+    transition: transform 0.15s;
+  }
+
+  .switch.on .knob { transform: translateX(18px); }
 
   .region-row {
     display: flex;
@@ -379,7 +441,7 @@ function clearStore(store) {
 /* ------------------------------ model ------------------------------ */
 
 let cards = {};   // code -> record
-let meta = { k: 'progress', region: 'northeast', counter: 0, done: [] };
+let meta = { k: 'progress', region: 'northeast', counter: 0, done: [], beginnerMode: false };
 
 function blank(code) {
   return { code, box: 1, streak: 0, hits: 0, misses: 0, due: 0 };
@@ -405,7 +467,7 @@ async function resetAll() {
   await clearStore('meta');
   cards = {};
   QUIZ_CODES.forEach(c => cards[c] = blank(c));
-  meta = { k: 'progress', region: 'northeast', counter: 0, done: [] };
+  meta = { k: 'progress', region: 'northeast', counter: 0, done: [], beginnerMode: meta.beginnerMode };
   await saveMeta();
 }
 
@@ -439,8 +501,28 @@ function pick(pool) {
 let current = null;
 let flipped = false;
 let wasReview = false;
+let picked = null;
+let choiceCache = null;   // { code, options } — keeps a card's shuffled options stable across re-renders
+
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+function choicesFor(code) {
+  if (choiceCache && choiceCache.code === code) return choiceCache.options;
+  const distractors = shuffle(QUIZ_CODES.filter(c => c !== code)).slice(0, 3);
+  const options = shuffle([code, ...distractors]);
+  choiceCache = { code, options };
+  return options;
+}
 
 function nextCard() {
+  picked = null;
   const idx = REGIONS.findIndex(r => r.id === meta.region);
   const region = REGIONS[idx];
   const active = region.codes.filter(c => !known(c));
@@ -564,11 +646,24 @@ function renderHome() {
   app.innerHTML = `<div class="sheet">
     <h1 class="lede">${totalKnown} of 50 states</h1>
     <p class="lede-sub">Pick a region to practise. A state counts as known once you name it right twice in a row.</p>
+    <button class="toggle-row" id="beginnerToggle" aria-pressed="${meta.beginnerMode ? 'true' : 'false'}">
+      <span class="grow">
+        <span class="tname">Beginner mode</span>
+        <span class="tmeta">New states show 4 name choices until known</span>
+      </span>
+      <span class="switch${meta.beginnerMode ? ' on' : ''}"><span class="knob"></span></span>
+    </button>
     ${rows}
     <div class="footer-actions">
       <button class="link warn" id="reset">Start over</button>
     </div>
   </div>`;
+
+  document.getElementById('beginnerToggle').onclick = async () => {
+    meta.beginnerMode = !meta.beginnerMode;
+    await saveMeta();
+    render();
+  };
 
   app.querySelectorAll('[data-region]').forEach(b => {
     b.onclick = async () => {
@@ -604,22 +699,48 @@ function renderCard() {
   const c = cards[current];
   const useInset = INSET.has(current);
   const pct = s.total ? (s.got / s.total) * 100 : 0;
+  const beginnerCard = meta.beginnerMode && !known(current);
 
   const insetMarkup = useInset
     ? `<div class="inset">${mapSVG(current, insetBox(current).join(' '), false)}<b>Zoomed in</b></div>`
     : '';
 
-  const answerMarkup = flipped
-    ? `<div class="reveal">
-         <div class="name" aria-live="polite">${esc(GEO[current].n)}</div>
-         <div class="sub">${wasReview ? reviewLine(current) : streakLine(c)}</div>
-         <div class="rate">
-           <button class="missed" id="miss">Missed it</button>
-           <button class="got" id="got">Got it</button>
-         </div>
-       </div>`
-    : `<p class="ask">Which state is this?</p>
-       <p class="ask-sub">Say it out loud, then tap the map</p>`;
+  let answerMarkup;
+  let options = null;
+  if (beginnerCard) {
+    options = choicesFor(current);
+    answerMarkup = picked === null
+      ? `<p class="ask">Which state is this?</p>
+         <p class="ask-sub">Tap the matching name</p>
+         <div class="choices">
+           ${options.map(code => `<button class="choice" data-code="${code}">${esc(GEO[code].n)}</button>`).join('')}
+         </div>`
+      : `<div class="reveal">
+           <div class="name" aria-live="polite">${esc(GEO[current].n)}</div>
+           <div class="sub">${picked === current ? 'Correct!' : `Not quite — you picked ${esc(GEO[picked].n)}`}</div>
+           <div class="choices answered">
+             ${options.map(code => {
+               const cls = code === current ? ' correct' : (code === picked ? ' wrong' : '');
+               return `<button class="choice${cls}" disabled>${esc(GEO[code].n)}</button>`;
+             }).join('')}
+           </div>
+           <button class="cta" id="continue">Continue</button>
+         </div>`;
+  } else {
+    answerMarkup = flipped
+      ? `<div class="reveal">
+           <div class="name" aria-live="polite">${esc(GEO[current].n)}</div>
+           <div class="sub">${wasReview ? reviewLine(current) : streakLine(c)}</div>
+           <div class="rate">
+             <button class="missed" id="miss">Missed it</button>
+             <button class="got" id="got">Got it</button>
+           </div>
+         </div>`
+      : `<p class="ask">Which state is this?</p>
+         <p class="ask-sub">Say it out loud, then tap the map</p>`;
+  }
+
+  const revealed = beginnerCard ? picked !== null : flipped;
 
   app.innerHTML = `
     <header>
@@ -628,7 +749,7 @@ function renderCard() {
     </header>
     <div class="bar"><span style="width:${pct}%"></span></div>
     <div class="stage">
-      <button class="map-panel" id="flip" ${flipped ? 'disabled' : ''} aria-label="${flipped ? esc(GEO[current].n) : 'Reveal the state name'}">
+      <button class="map-panel" id="flip" ${(beginnerCard || flipped) ? 'disabled' : ''} aria-label="${revealed ? esc(GEO[current].n) : (beginnerCard ? 'Which state is highlighted' : 'Reveal the state name')}">
         ${mapSVG(current, VIEWBOX, useInset)}
         ${insetMarkup}
       </button>
@@ -636,11 +757,22 @@ function renderCard() {
     </div>`;
 
   document.getElementById('back').onclick = () => { view = 'home'; render(); };
-  const flip = document.getElementById('flip');
-  if (!flipped) flip.onclick = () => { flipped = true; render(); };
-  if (flipped) {
-    document.getElementById('miss').onclick = () => answer(false);
-    document.getElementById('got').onclick = () => answer(true);
+
+  if (beginnerCard) {
+    if (picked === null) {
+      app.querySelectorAll('.choice').forEach(btn => {
+        btn.onclick = () => { picked = btn.dataset.code; render(); };
+      });
+    } else {
+      document.getElementById('continue').onclick = () => answer(picked === current);
+    }
+  } else {
+    const flip = document.getElementById('flip');
+    if (!flipped) flip.onclick = () => { flipped = true; render(); };
+    if (flipped) {
+      document.getElementById('miss').onclick = () => answer(false);
+      document.getElementById('got').onclick = () => answer(true);
+    }
   }
 }
 
